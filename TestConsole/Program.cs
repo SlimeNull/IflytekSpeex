@@ -1,5 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
-using LibIflytekSpeex;
+﻿using LibIflytekSpeex;
 
 Console.WriteLine("Hello, World!");
 
@@ -9,7 +8,6 @@ Console.WriteLine("Hello, World!");
     using FileStream speexOutput = File.Create("Oriens.speex");
 
     MemoryStream encoded = new MemoryStream();
-    MemoryStream decoded = new MemoryStream();
 
     Speex.Encode(input, encoded, 16000, 7, 1280);
 

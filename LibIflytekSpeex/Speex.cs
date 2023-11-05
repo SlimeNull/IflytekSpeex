@@ -16,6 +16,7 @@ namespace LibIflytekSpeex
         static readonly int[] s_nbFrameSizes =
             new int[] { 7, 11, 16, 21, 21, 29, 29, 39, 39, 47, 63 };
 
+
         static void EnsureSampleRate(int sampleRate, out int mode)
         {
             if (sampleRate == 8000)
@@ -102,44 +103,50 @@ namespace LibIflytekSpeex
             if (err != 0)
                 throw new SpeexException("Speex init failed");
 
-            byte[] sourceBuffer = new byte[blockSize];
-            fixed (byte* sourceBufferPtr = sourceBuffer)
+            try
             {
-                while (true)
+                byte[] sourceBuffer = new byte[blockSize];
+                fixed (byte* sourceBufferPtr = sourceBuffer)
                 {
-                    int readCount = sourceStream.Read(sourceBuffer, 0, blockSize);
-
-                    if (readCount == 0)
-                        break;
-
-                    if (readCount < blockSize)
+                    while (true)
                     {
-                        inputSize = readCount;
-                        isLast = true;
+                        int readCount = sourceStream.Read(sourceBuffer, 0, blockSize);
+
+                        if (readCount == 0)
+                            break;
+
+                        if (readCount < blockSize)
+                        {
+                            inputSize = readCount;
+                            isLast = true;
+                        }
+                        else
+                        {
+                            inputSize = blockSize;
+                        }
+
+                        int encodeFrameNum = inputSize / sizeOfOnePcmFrame;
+                        uint encodedSize = (uint)(frameLen * (encodeFrameNum + 1));
+                        byte[] encodedBuffer = new byte[encodedSize];
+
+                        fixed (byte* encodedBufferPtr = encodedBuffer)
+                        {
+                            int ret = SpeexApi.Encode(speexHandle, sourceBufferPtr, (uint)inputSize, encodedBufferPtr, &encodedSize, (short)speexLevel);
+                            if (ret != 0)
+                                throw new SpeexException("Speex encode failed");
+                        }
+
+                        inputOffset += inputSize;
+                        destStream.Write(encodedBuffer, 0, (int)encodedSize);
+
+                        if (isLast)
+                            break;
                     }
-                    else
-                    {
-                        inputSize = blockSize;
-                    }
-
-                    int encodeFrameNum = inputSize / sizeOfOnePcmFrame;
-                    uint encodedSize = (uint)(frameLen * (encodeFrameNum + 1));
-                    byte[] encodedBuffer = new byte[encodedSize];
-
-                    fixed (byte* encodedBufferPtr = encodedBuffer)
-                    {
-                        int ret = SpeexApi.Encode(speexHandle, sourceBufferPtr, (uint)inputSize, encodedBufferPtr, &encodedSize, (short)speexLevel);
-                        if (ret != 0)
-                            throw new SpeexException("Speex encode failed");
-                    }
-
-                    inputOffset += inputSize;
-                    destStream.Write(encodedBuffer, 0, (int)encodedSize);
-
-                    if (isLast)
-                        break;
                 }
-
+            }
+            finally
+            {
+                SpeexApi.EncodeFini(speexHandle);
             }
         }
 
@@ -171,45 +178,52 @@ namespace LibIflytekSpeex
             if (err != 0)
                 throw new SpeexException("Speex init failed");
 
-            byte[] sourceBuffer = new byte[blockSize];
-            fixed (byte* sourceBufferPtr = sourceBuffer)
+            try
             {
-                while (true)
+                byte[] sourceBuffer = new byte[blockSize];
+                fixed (byte* sourceBufferPtr = sourceBuffer)
                 {
-                    int readCount = sourceStream.Read(sourceBuffer, 0, blockSize);
-
-                    if (readCount == 0)
-                        break;
-
-                    if (readCount < blockSize)
+                    while (true)
                     {
-                        inputSize = readCount;
-                        isLast = true;
+                        int readCount = sourceStream.Read(sourceBuffer, 0, blockSize);
+
+                        if (readCount == 0)
+                            break;
+
+                        if (readCount < blockSize)
+                        {
+                            inputSize = readCount;
+                            isLast = true;
+                        }
+                        else
+                        {
+                            inputSize = blockSize;
+                        }
+
+                        int decodedFrameLen = inputSize;
+                        int decodeFrameNum = inputSize / frameLen;
+                        uint decodedSize = (uint)(sizeOfOnePcmFrame * decodeFrameNum);
+                        byte[] decodedBuffer = new byte[decodedSize];
+
+                        fixed (byte* decodeBufferPtr = decodedBuffer)
+                        {
+                            err = SpeexApi.Decode(speexHandle, sourceBufferPtr, (uint)inputSize, decodeBufferPtr, &decodedSize);
+                            if (err != 0)
+                                throw new SpeexException("Decode failed");
+                        }
+
+
+                        inputOffset += inputSize;
+                        destStream.Write(decodedBuffer, 0, (int)decodedSize);
+
+                        if (isLast)
+                            break;
                     }
-                    else
-                    {
-                        inputSize = blockSize;
-                    }
-
-                    int decodedFrameLen = inputSize;
-                    int decodeFrameNum = inputSize / frameLen;
-                    uint decodedSize = (uint)(sizeOfOnePcmFrame * decodeFrameNum);
-                    byte[] decodedBuffer = new byte[decodedSize];
-
-                    fixed (byte* decodeBufferPtr = decodedBuffer)
-                    {
-                        err = SpeexApi.Decode(speexHandle, sourceBufferPtr, (uint)inputSize, decodeBufferPtr, &decodedSize);
-                        if (err != 0)
-                            throw new SpeexException("Decode failed");
-                    }
-
-
-                    inputOffset += inputSize;
-                    destStream.Write(decodedBuffer, 0, (int)decodedSize);
-
-                    if (isLast)
-                        break;
                 }
+            }
+            finally
+            {
+                SpeexApi.DecodeFini(speexHandle);
             }
         }
 
